@@ -1,6 +1,6 @@
 {
   "name": "memo-todo",
-  "version": "0.1.0",
+  "version": "0.1.10",
   "private": true,
   "description": "个人使用的 Windows 桌面待办小组件",
   "main": "dist-electron/main/main.js",
@@ -38,19 +38,28 @@
     "wait-on": "^8.0.1"
   },
   "build": {
-    "appId": "com.memo.todo",
+    "appId": "com.memo.todo.desktop",
     "productName": "Memo ToDo",
     "asar": true,
     "directories": {
+      "buildResources": "build",
       "output": "release"
     },
+    "extraResources": [
+      {
+        "from": "build/icon.ico",
+        "to": "icon.ico"
+      }
+    ],
     "files": [
+      "build/**/*",
       "dist/**/*",
       "dist-electron/**/*",
       "package.json"
     ],
     "win": {
-      "signAndEditExecutable": false,
+      "icon": "build/icon.ico",
+      "signExecutable": false,
       "target": [
         "portable"
       ]

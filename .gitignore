@@ -1,7 +1,9 @@
 node_modules/
 dist/
 dist-electron/
-release/
+release/*
+!release/
+!release/*.exe
 
 *.log
 npm-debug.log*

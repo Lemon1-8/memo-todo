@@ -6,6 +6,8 @@ import {
   Settings,
   SettingsUpdate,
   Task,
+  TaskPriority,
+  TaskStatus,
   TaskUpdate,
   WindowBounds,
   createDefaultSettings,
@@ -65,10 +67,12 @@ export class JsonStore {
     const task: Task = {
       id: createId(),
       title,
+      status: 'todo',
       completed: false,
       createdAt: timestamp,
       updatedAt: timestamp,
       order: nextOrder(this.state.tasks),
+      priority: 'normal',
       reminderAt: parsed.reminderAt
     };
 
@@ -93,6 +97,16 @@ export class JsonStore {
     if ('remindedAt' in patch) {
       task.remindedAt = patch.remindedAt || undefined;
     }
+    if ('priority' in patch) {
+      task.priority = normalizePriority(patch.priority);
+    }
+    if ('status' in patch) {
+      task.status = normalizeStatus(patch.status, task.completed);
+      task.completed = task.status === 'done';
+    }
+    if ('archivedAt' in patch) {
+      task.archivedAt = patch.archivedAt ? safeOptionalIso(patch.archivedAt) : undefined;
+    }
     task.updatedAt = now.toISOString();
     this.save();
     return clone(task);
@@ -101,19 +115,46 @@ export class JsonStore {
   completeTask(id: string, completed: boolean, now = new Date()): Task {
     const task = this.findTask(id);
     task.completed = completed;
+    task.status = completed ? 'done' : 'todo';
     task.updatedAt = now.toISOString();
     this.save();
     return clone(task);
   }
 
-  deleteTask(id: string): void {
-    const initialLength = this.state.tasks.length;
-    this.state.tasks = this.state.tasks.filter((task) => task.id !== id);
-    if (this.state.tasks.length === initialLength) {
-      throw new Error('任务不存在');
-    }
+  deleteTask(id: string): Task {
+    const task = this.findTask(id);
+    const deleted = clone(task);
+    this.state.tasks = this.state.tasks.filter((candidate) => candidate.id !== id);
     this.reindexTasks();
     this.save();
+    return deleted;
+  }
+
+  restoreTask(task: Task, now = new Date()): Task {
+    if (this.state.tasks.some((candidate) => candidate.id === task.id)) {
+      throw new Error('任务已存在');
+    }
+
+    const timestamp = now.toISOString();
+    const restored = normalizeTask(task, nextOrder(this.state.tasks));
+    restored.updatedAt = timestamp;
+    this.state.tasks.push(restored);
+    this.state.tasks = sortTasks(this.state.tasks);
+    this.reindexTasks(now);
+    this.save();
+    return clone(this.findTask(restored.id));
+  }
+
+  archiveCompletedTasks(now = new Date()): Task[] {
+    const timestamp = now.toISOString();
+    for (const task of this.state.tasks) {
+      if (task.status === 'done' && !task.archivedAt) {
+        task.archivedAt = timestamp;
+        task.updatedAt = timestamp;
+      }
+    }
+    this.save();
+    return this.listTasks();
   }
 
   reorderTasks(orderedIds: string[], now = new Date()): Task[] {
@@ -139,7 +180,7 @@ export class JsonStore {
   getDueTasks(now = new Date()): Task[] {
     const dueTime = now.getTime();
     return this.state.tasks
-      .filter((task) => !task.completed && task.reminderAt && !task.remindedAt)
+      .filter((task) => task.status !== 'done' && !task.archivedAt && task.reminderAt && !task.remindedAt)
       .filter((task) => new Date(task.reminderAt as string).getTime() <= dueTime)
       .map((task) => clone(task));
   }
@@ -196,22 +237,53 @@ export class JsonStore {
 
 function normalizeState(raw: Partial<AppState>): AppState {
   const state = createDefaultState();
-  const tasks = Array.isArray(raw.tasks) ? raw.tasks : [];
+  const tasks = Array.isArray(raw.tasks) ? (raw.tasks as unknown[]) : [];
   state.tasks = tasks
-    .filter((task): task is Task => typeof task?.id === 'string' && typeof task?.title === 'string')
-    .map((task, index) => ({
-      id: task.id,
-      title: task.title.trim() || '未命名任务',
-      completed: Boolean(task.completed),
-      createdAt: safeIso(task.createdAt),
-      updatedAt: safeIso(task.updatedAt),
-      order: Number.isFinite(task.order) ? task.order : index,
-      reminderAt: safeOptionalIso(task.reminderAt),
-      remindedAt: safeOptionalIso(task.remindedAt)
-    }));
+    .filter(isTaskLike)
+    .map((task, index) => normalizeTask(task, index));
   state.tasks = sortTasks(state.tasks).map((task, index) => ({ ...task, order: index }));
   state.settings = normalizeSettings(raw.settings);
   return state;
+}
+
+function isTaskLike(task: unknown): task is Partial<Task> {
+  if (!task || typeof task !== 'object') {
+    return false;
+  }
+
+  const candidate = task as Partial<Task>;
+  return typeof candidate.id === 'string' && typeof candidate.title === 'string';
+}
+
+function normalizeTask(task: Partial<Task>, fallbackOrder: number): Task {
+  const status = normalizeStatus(task.status, Boolean(task.completed));
+  return {
+    id: String(task.id),
+    title: typeof task.title === 'string' && task.title.trim() ? task.title.trim() : '未命名任务',
+    status,
+    completed: status === 'done',
+    createdAt: safeIso(task.createdAt),
+    updatedAt: safeIso(task.updatedAt),
+    order: typeof task.order === 'number' && Number.isFinite(task.order) ? task.order : fallbackOrder,
+    priority: normalizePriority(task.priority),
+    reminderAt: safeOptionalIso(task.reminderAt),
+    remindedAt: safeOptionalIso(task.remindedAt),
+    archivedAt: safeOptionalIso(task.archivedAt)
+  };
+}
+
+function normalizePriority(value: unknown): TaskPriority {
+  if (value === 'low' || value === 'normal' || value === 'high') {
+    return value;
+  }
+  return 'normal';
+}
+
+function normalizeStatus(value: unknown, completedFallback = false): TaskStatus {
+  if (value === 'todo' || value === 'doing' || value === 'waiting' || value === 'done') {
+    return value;
+  }
+  return completedFallback ? 'done' : 'todo';
 }
 
 function normalizeSettings(raw: unknown): Settings {
@@ -224,6 +296,7 @@ function normalizeSettings(raw: unknown): Settings {
   return {
     windowBounds: settings.windowBounds ? normalizeBounds(settings.windowBounds) : undefined,
     alwaysOnTop: Boolean(settings.alwaysOnTop),
+    hoverToShow: settings.hoverToShow === undefined ? defaults.hoverToShow : Boolean(settings.hoverToShow),
     launchAtLogin: Boolean(settings.launchAtLogin),
     themeOpacity: clamp(Number(settings.themeOpacity), 0.82, 0.98, defaults.themeOpacity)
   };
