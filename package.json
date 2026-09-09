@@ -1,6 +1,6 @@
 {
   "name": "memo-todo",
-  "version": "0.1.10",
+  "version": "0.1.11",
   "private": true,
   "description": "个人使用的 Windows 桌面待办小组件",
   "main": "dist-electron/main/main.js",

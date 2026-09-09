@@ -455,11 +455,15 @@ export function App(): JSX.Element {
             <span>{getEmptyMessage(statusFilter, hasFilters, tasks.length)}</span>
           </div>
         ) : (
-          visibleTasks.map((task) => (
+          visibleTasks.map((task) => {
+            const hasReminderEditor = reminderEditingId === task.id;
+            const taskHoverText = hasReminderEditor ? undefined : getTaskHoverText(task);
+
+            return (
             <article
-              className={getTaskRowClass(task, reminderEditingId === task.id)}
+              className={getTaskRowClass(task, hasReminderEditor)}
               key={task.id}
-              title={getTaskHoverText(task)}
+              title={taskHoverText}
             >
               <button
                 className="check-button"
@@ -485,7 +489,7 @@ export function App(): JSX.Element {
                   <button
                     className="task-title"
                     type="button"
-                    title={getTaskHoverText(task)}
+                    title={taskHoverText}
                     onDoubleClick={() => beginEdit(task)}
                   >
                     {task.title}
@@ -523,9 +527,9 @@ export function App(): JSX.Element {
                   <Edit3 size={14} />
                 </button>
                 <button
-                  className={reminderEditingId === task.id ? 'tiny-button is-active' : 'tiny-button'}
+                  className={hasReminderEditor ? 'tiny-button is-active' : 'tiny-button'}
                   type="button"
-                  title={task.reminderAt ? '编辑提醒' : '设置提醒'}
+                  title={hasReminderEditor ? undefined : task.reminderAt ? '编辑提醒' : '设置提醒'}
                   onClick={() => beginReminderEdit(task)}
                 >
                   <Bell size={14} />
@@ -560,7 +564,7 @@ export function App(): JSX.Element {
                 </button>
               </div>
 
-              {reminderEditingId === task.id ? (
+              {hasReminderEditor ? (
                 <form className="reminder-editor" onSubmit={(event) => handleReminderSubmit(event, task)}>
                   <input
                     type="datetime-local"
@@ -584,7 +588,8 @@ export function App(): JSX.Element {
                 </form>
               ) : null}
             </article>
-          ))
+            );
+          })
         )}
       </section>
 

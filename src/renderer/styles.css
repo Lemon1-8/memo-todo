@@ -419,6 +419,7 @@ input:focus-visible {
 }
 
 .task-row {
+  position: relative;
   display: grid;
   grid-template-areas:
     "check main actions"
@@ -457,6 +458,10 @@ input:focus-visible {
 
 .task-row.status-waiting {
   background: rgba(214, 154, 47, 0.08);
+}
+
+.task-row.has-reminder-editor {
+  z-index: 3;
 }
 
 .task-row:last-child {
@@ -636,6 +641,8 @@ input:focus-visible {
 
 .reminder-editor {
   grid-area: reminder;
+  position: relative;
+  z-index: 4;
   display: grid;
   grid-template-columns: minmax(0, 1fr) 54px repeat(2, 26px);
   align-items: center;
