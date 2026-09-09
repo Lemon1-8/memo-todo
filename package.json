@@ -1,0 +1,59 @@
+{
+  "name": "memo-todo",
+  "version": "0.1.0",
+  "private": true,
+  "description": "个人使用的 Windows 桌面待办小组件",
+  "main": "dist-electron/main/main.js",
+  "author": "Memo ToDo",
+  "license": "UNLICENSED",
+  "scripts": {
+    "dev": "npm run build:electron && concurrently -k \"vite --host 127.0.0.1\" \"wait-on http://127.0.0.1:5173 && npm run electron:dev\"",
+    "electron:dev": "cross-env VITE_DEV_SERVER_URL=http://127.0.0.1:5173 electron .",
+    "build:renderer": "vite build",
+    "build:electron": "tsc -p tsconfig.electron.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.electron.json",
+    "test": "vitest --config vitest.config.ts",
+    "test:run": "vitest run --config vitest.config.ts",
+    "build": "npm run typecheck && npm run test:run && npm run build:renderer && npm run build:electron",
+    "dist": "npm run build && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --win portable",
+    "start": "npm run build && electron ."
+  },
+  "dependencies": {
+    "lucide-react": "^0.468.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.1",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.4",
+    "concurrently": "^9.1.0",
+    "cross-env": "^7.0.3",
+    "electron": "^44.3.0",
+    "electron-builder": "^26.15.3",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.3",
+    "vitest": "^5.0.0",
+    "wait-on": "^8.0.1"
+  },
+  "build": {
+    "appId": "com.memo.todo",
+    "productName": "Memo ToDo",
+    "asar": true,
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*",
+      "package.json"
+    ],
+    "win": {
+      "signAndEditExecutable": false,
+      "target": [
+        "portable"
+      ]
+    }
+  }
+}
